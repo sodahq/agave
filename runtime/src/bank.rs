@@ -4270,6 +4270,8 @@ impl Bank {
     }
 
     fn collect_rent_eagerly(&self) {
+          // Just return early - don't collect any rent
+          return;
         if self.lazy_rent_collection.load(Relaxed) {
             return;
         }
@@ -4374,9 +4376,11 @@ impl Bank {
 
     /// true if rent fees should be collected (i.e. disable_rent_fees_collection is NOT enabled)
     fn should_collect_rent(&self) -> bool {
-        !self
-            .feature_set
-            .is_active(&feature_set::disable_rent_fees_collection::id())
+         // Always return false to disable rent collection
+    false
+        // !self
+        //     .feature_set
+        //     .is_active(&feature_set::disable_rent_fees_collection::id())
     }
 
     /// Collect rent from `accounts`
@@ -4394,114 +4398,118 @@ impl Bank {
         rent_paying_pubkeys: Option<&HashSet<Pubkey>>,
         partition_index: PartitionIndex,
     ) -> CollectRentFromAccountsInfo {
-        let mut rent_debits = RentDebits::default();
-        let mut total_rent_collected_info = CollectedInfo::default();
-        let mut accounts_to_store =
-            Vec::<(&Pubkey, &AccountSharedData)>::with_capacity(accounts.len());
-        let mut time_collecting_rent_us = 0;
-        let mut time_storing_accounts_us = 0;
-        let can_skip_rewrites = self.bank_hash_skips_rent_rewrites();
-        let test_skip_rewrites_but_include_in_bank_hash = self
-            .rc
-            .accounts
-            .accounts_db
-            .test_skip_rewrites_but_include_in_bank_hash;
-        let mut skipped_rewrites = Vec::default();
-        for (pubkey, account, _loaded_slot) in accounts.iter_mut() {
-            let rent_epoch_pre = account.rent_epoch();
-            let (rent_collected_info, collect_rent_us) = measure_us!(collect_rent_from_account(
-                &self.feature_set,
-                &self.rent_collector,
-                pubkey,
-                account
-            ));
-            time_collecting_rent_us += collect_rent_us;
-            let rent_epoch_post = account.rent_epoch();
+         // Return empty result with no rent collected
+        CollectRentFromAccountsInfo::default()
 
-            // did the account change in any way due to rent collection?
-            let rent_epoch_changed = rent_epoch_post != rent_epoch_pre;
-            let account_changed = rent_collected_info.rent_amount != 0 || rent_epoch_changed;
 
-            // always store the account, regardless if it changed or not
-            let always_store_accounts =
-                !can_skip_rewrites && !test_skip_rewrites_but_include_in_bank_hash;
+        // let mut rent_debits = RentDebits::default();
+        // let mut total_rent_collected_info = CollectedInfo::default();
+        // let mut accounts_to_store =
+        //     Vec::<(&Pubkey, &AccountSharedData)>::with_capacity(accounts.len());
+        // let mut time_collecting_rent_us = 0;
+        // let mut time_storing_accounts_us = 0;
+        // let can_skip_rewrites = self.bank_hash_skips_rent_rewrites();
+        // let test_skip_rewrites_but_include_in_bank_hash = self
+        //     .rc
+        //     .accounts
+        //     .accounts_db
+        //     .test_skip_rewrites_but_include_in_bank_hash;
+        // let mut skipped_rewrites = Vec::default();
+        // for (pubkey, account, _loaded_slot) in accounts.iter_mut() {
+        //     let rent_epoch_pre = account.rent_epoch();
+        //     let (rent_collected_info, collect_rent_us) = measure_us!(collect_rent_from_account(
+        //         &self.feature_set,
+        //         &self.rent_collector,
+        //         pubkey,
+        //         account
+        //     ));
+        //     time_collecting_rent_us += collect_rent_us;
+        //     let rent_epoch_post = account.rent_epoch();
 
-            // only store accounts where we collected rent
-            // but get the hash for all these accounts even if collected rent is 0 (= not updated).
-            // Also, there's another subtle side-effect from rewrites: this
-            // ensures we verify the whole on-chain state (= all accounts)
-            // via the bank delta hash slowly once per an epoch.
-            if account_changed || always_store_accounts {
-                if rent_collected_info.rent_amount > 0 {
-                    if let Some(rent_paying_pubkeys) = rent_paying_pubkeys {
-                        if !rent_paying_pubkeys.contains(pubkey) {
-                            let partition_from_pubkey = accounts_partition::partition_from_pubkey(
-                                pubkey,
-                                self.epoch_schedule.slots_per_epoch,
-                            );
-                            // Submit datapoint instead of assert while we verify this is correct
-                            datapoint_warn!(
-                                "bank-unexpected_rent_paying_pubkey",
-                                ("slot", self.slot(), i64),
-                                ("pubkey", pubkey.to_string(), String),
-                                ("partition_index", partition_index, i64),
-                                ("partition_from_pubkey", partition_from_pubkey, i64)
-                            );
-                            warn!(
-                                "Collecting rent from unexpected pubkey: {}, slot: {}, parent_slot: {:?}, \
-                                partition_index: {}, partition_from_pubkey: {}",
-                                pubkey,
-                                self.slot(),
-                                self.parent().map(|bank| bank.slot()),
-                                partition_index,
-                                partition_from_pubkey,
-                            );
-                        }
-                    }
-                } else {
-                    debug_assert_eq!(rent_collected_info.rent_amount, 0);
-                    if rent_epoch_changed {
-                        datapoint_info!(
-                            "bank-rent_collection_updated_only_rent_epoch",
-                            ("slot", self.slot(), i64),
-                            ("pubkey", pubkey.to_string(), String),
-                            ("rent_epoch_pre", rent_epoch_pre, i64),
-                            ("rent_epoch_post", rent_epoch_post, i64),
-                        );
-                    }
-                }
-                total_rent_collected_info += rent_collected_info;
-                accounts_to_store.push((pubkey, account));
-            } else if !account_changed
-                && !can_skip_rewrites
-                && test_skip_rewrites_but_include_in_bank_hash
-            {
-                // include rewrites that we skipped in the accounts delta hash.
-                // This is what consensus requires prior to activation of bank_hash_skips_rent_rewrites.
-                // This code path exists to allow us to test the long term effects on validators when the skipped rewrites
-                // feature is enabled.
-                let hash = AccountsDb::hash_account(account, pubkey);
-                skipped_rewrites.push((*pubkey, hash));
-            }
-            rent_debits.insert(pubkey, rent_collected_info.rent_amount, account.lamports());
-        }
+        //     // did the account change in any way due to rent collection?
+        //     let rent_epoch_changed = rent_epoch_post != rent_epoch_pre;
+        //     let account_changed = rent_collected_info.rent_amount != 0 || rent_epoch_changed;
 
-        if !accounts_to_store.is_empty() {
-            // TODO: Maybe do not call `store_accounts()` here.  Instead return `accounts_to_store`
-            // and have `collect_rent_in_partition()` perform all the stores.
-            let (_, store_accounts_us) =
-                measure_us!(self.store_accounts((self.slot(), &accounts_to_store[..])));
-            time_storing_accounts_us += store_accounts_us;
-        }
+        //     // always store the account, regardless if it changed or not
+        //     let always_store_accounts =
+        //         !can_skip_rewrites && !test_skip_rewrites_but_include_in_bank_hash;
 
-        CollectRentFromAccountsInfo {
-            skipped_rewrites,
-            rent_collected_info: total_rent_collected_info,
-            rent_rewards: rent_debits.into_unordered_rewards_iter().collect(),
-            time_collecting_rent_us,
-            time_storing_accounts_us,
-            num_accounts: accounts.len(),
-        }
+        //     // only store accounts where we collected rent
+        //     // but get the hash for all these accounts even if collected rent is 0 (= not updated).
+        //     // Also, there's another subtle side-effect from rewrites: this
+        //     // ensures we verify the whole on-chain state (= all accounts)
+        //     // via the bank delta hash slowly once per an epoch.
+        //     if account_changed || always_store_accounts {
+        //         if rent_collected_info.rent_amount > 0 {
+        //             if let Some(rent_paying_pubkeys) = rent_paying_pubkeys {
+        //                 if !rent_paying_pubkeys.contains(pubkey) {
+        //                     let partition_from_pubkey = accounts_partition::partition_from_pubkey(
+        //                         pubkey,
+        //                         self.epoch_schedule.slots_per_epoch,
+        //                     );
+        //                     // Submit datapoint instead of assert while we verify this is correct
+        //                     datapoint_warn!(
+        //                         "bank-unexpected_rent_paying_pubkey",
+        //                         ("slot", self.slot(), i64),
+        //                         ("pubkey", pubkey.to_string(), String),
+        //                         ("partition_index", partition_index, i64),
+        //                         ("partition_from_pubkey", partition_from_pubkey, i64)
+        //                     );
+        //                     warn!(
+        //                         "Collecting rent from unexpected pubkey: {}, slot: {}, parent_slot: {:?}, \
+        //                         partition_index: {}, partition_from_pubkey: {}",
+        //                         pubkey,
+        //                         self.slot(),
+        //                         self.parent().map(|bank| bank.slot()),
+        //                         partition_index,
+        //                         partition_from_pubkey,
+        //                     );
+        //                 }
+        //             }
+        //         } else {
+        //             debug_assert_eq!(rent_collected_info.rent_amount, 0);
+        //             if rent_epoch_changed {
+        //                 datapoint_info!(
+        //                     "bank-rent_collection_updated_only_rent_epoch",
+        //                     ("slot", self.slot(), i64),
+        //                     ("pubkey", pubkey.to_string(), String),
+        //                     ("rent_epoch_pre", rent_epoch_pre, i64),
+        //                     ("rent_epoch_post", rent_epoch_post, i64),
+        //                 );
+        //             }
+        //         }
+        //         total_rent_collected_info += rent_collected_info;
+        //         accounts_to_store.push((pubkey, account));
+        //     } else if !account_changed
+        //         && !can_skip_rewrites
+        //         && test_skip_rewrites_but_include_in_bank_hash
+        //     {
+        //         // include rewrites that we skipped in the accounts delta hash.
+        //         // This is what consensus requires prior to activation of bank_hash_skips_rent_rewrites.
+        //         // This code path exists to allow us to test the long term effects on validators when the skipped rewrites
+        //         // feature is enabled.
+        //         let hash = AccountsDb::hash_account(account, pubkey);
+        //         skipped_rewrites.push((*pubkey, hash));
+        //     }
+        //     rent_debits.insert(pubkey, rent_collected_info.rent_amount, account.lamports());
+        // }
+
+        // if !accounts_to_store.is_empty() {
+        //     // TODO: Maybe do not call `store_accounts()` here.  Instead return `accounts_to_store`
+        //     // and have `collect_rent_in_partition()` perform all the stores.
+        //     let (_, store_accounts_us) =
+        //         measure_us!(self.store_accounts((self.slot(), &accounts_to_store[..])));
+        //     time_storing_accounts_us += store_accounts_us;
+        // }
+
+        // CollectRentFromAccountsInfo {
+        //     skipped_rewrites,
+        //     rent_collected_info: total_rent_collected_info,
+        //     rent_rewards: rent_debits.into_unordered_rewards_iter().collect(),
+        //     time_collecting_rent_us,
+        //     time_storing_accounts_us,
+        //     num_accounts: accounts.len(),
+        // }
     }
 
     /// convert 'partition' to a pubkey range and 'collect_rent_in_range'
@@ -4509,7 +4517,7 @@ impl Bank {
         let subrange_full = accounts_partition::pubkey_range_from_partition(partition);
         self.collect_rent_in_range(partition, subrange_full, metrics)
     }
-
+    
     /// get all pubkeys that we expect to be rent-paying or None, if this was not initialized at load time (that should only exist in test cases)
     fn get_rent_paying_pubkeys(&self, partition: &Partition) -> Option<HashSet<Pubkey>> {
         self.rc
@@ -5870,45 +5878,58 @@ impl Bank {
         }
     }
 
+
     pub fn verify_transaction(
         &self,
         tx: VersionedTransaction,
         verification_mode: TransactionVerificationMode,
     ) -> Result<SanitizedTransaction> {
-        let sanitized_tx = {
-            let size =
-                bincode::serialized_size(&tx).map_err(|_| TransactionError::SanitizeFailure)?;
-            if size > PACKET_DATA_SIZE as u64 {
-                return Err(TransactionError::SanitizeFailure);
-            }
-            let message_hash = if verification_mode == TransactionVerificationMode::FullVerification
-            {
-                tx.verify_and_hash_message()?
-            } else {
-                tx.message.hash()
-            };
 
-            SanitizedTransaction::try_create(
-                tx,
-                message_hash,
-                None,
-                self,
-                self.get_reserved_account_keys(),
-            )
-        }?;
+          SanitizedTransaction::try_create(
+        tx,
+        MessageHash::Compute, 
+        None,
+        self,
+        self.get_reserved_account_keys(),
+    )
 
-        let move_precompile_verification_to_svm = self
-            .feature_set
-            .is_active(&feature_set::move_precompile_verification_to_svm::id());
-        if !move_precompile_verification_to_svm && {
-            verification_mode == TransactionVerificationMode::HashAndVerifyPrecompiles
-                || verification_mode == TransactionVerificationMode::FullVerification
-        } {
-            verify_precompiles(&sanitized_tx, &self.feature_set)?;
-        }
+        //
+         //  let sanitized_tx = {
+        //     let size =
+        //         bincode::serialized_size(&tx).map_err(|_| TransactionError::SanitizeFailure)?;
+        //     if size > PACKET_DATA_SIZE as u64 {
+        //         return Err(TransactionError::SanitizeFailure);
+        //     }
+        //     let message_hash = if verification_mode == TransactionVerificationMode::FullVerification
+        //     {
+        //         tx.verify_and_hash_message()?
+        //     } else {
+        //         tx.message.hash()
+        //     };
 
-        Ok(sanitized_tx)
+        //     SanitizedTransaction::try_create(
+        //         tx,
+        //         message_hash,
+        //         None,
+        //         self,
+        //         self.get_reserved_account_keys(),
+        //     )
+        // }?;
+
+        // let move_precompile_verification_to_svm = self
+        //     .feature_set
+        //     .is_active(&feature_set::move_precompile_verification_to_svm::id());
+        // if !move_precompile_verification_to_svm && {
+        //     verification_mode == TransactionVerificationMode::HashAndVerifyPrecompiles
+        //         || verification_mode == TransactionVerificationMode::FullVerification
+        // } {
+        //     verify_precompiles(&sanitized_tx, &self.feature_set)?;
+        // }
+
+        // Ok(sanitized_tx)
     }
+
+    
 
     pub fn fully_verify_transaction(
         &self,

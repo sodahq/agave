@@ -38,7 +38,7 @@ impl RentCollectorWithMetrics {
 
 impl SVMRentCollector for RentCollectorWithMetrics {
     fn collect_rent(&self, address: &Pubkey, account: &mut AccountSharedData) -> CollectedInfo {
-        self.0.collect_rent(address, account)
+       CollectedInfo::default()
     }
 
     fn get_rent(&self) -> &Rent {

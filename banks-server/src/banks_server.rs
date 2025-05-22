@@ -163,16 +163,18 @@ fn verify_transaction(
     transaction: &SanitizedTransaction,
     feature_set: &Arc<FeatureSet>,
 ) -> transaction::Result<()> {
-    transaction.verify()?;
+     transaction.verify()?;
 
-    let move_precompile_verification_to_svm =
-        feature_set.is_active(&move_precompile_verification_to_svm::id());
-    if !move_precompile_verification_to_svm {
-        verify_precompiles(transaction, feature_set)?;
-    }
+    // let move_precompile_verification_to_svm =
+    //     feature_set.is_active(&move_precompile_verification_to_svm::id());
+    // if !move_precompile_verification_to_svm {
+    //     verify_precompiles(transaction, feature_set)?;
+    // }
 
     Ok(())
 }
+
+    
 
 fn simulate_transaction(
     bank: &Bank,
@@ -326,9 +328,10 @@ impl Banks for BanksServer {
             Err(err) => return Some(Err(err)),
         };
 
-        if let Err(err) = verify_transaction(&sanitized_transaction, &bank.feature_set) {
-            return Some(Err(err));
-        }
+      if let Err(err) = verify_transaction(&sanitized_transaction, &bank.feature_set) {
+    return Some(Err(err));
+}
+
 
         let blockhash = transaction.message.recent_blockhash();
         let last_valid_block_height = self
@@ -348,6 +351,7 @@ impl Banks for BanksServer {
         self.poll_signature_status(signature, blockhash, last_valid_block_height, commitment)
             .await
     }
+
 
     async fn process_transaction_with_metadata_and_context(
         self,

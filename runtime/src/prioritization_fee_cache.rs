@@ -266,8 +266,8 @@ impl PrioritizationFeeCache {
                     err
                 )
             });
-    }
-
+    }   
+    
     /// Internal function is invoked by worker thread to update slot's minimum prioritization fee.
     fn update_cache(
         unfinalized: &mut UnfinalizedPrioritizationFees,
